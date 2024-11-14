@@ -2,3 +2,4 @@
 *.env
 .[oa]
 *~
+__pycache__/
