@@ -5,42 +5,31 @@ DUPLICATION_ERROR_RATE: 1e-10
 
 
 class EColi:
+
+    ecoli_counter = 0
     
-    all_ecoli = []
-    def __init__(self, id:int, dna:str=None) -> None:
+    def __init__(self, fitness:float=None) -> None:
         """Creates a new EColi instance
 
         Args:
-            id (int): The identification of this specific EColi instance
             dna (str, optional): The Gene that will determin the EColi's fitness.
         """
-        self.id = id
-        if dna: 
-            self.dna = dna
-        else:
-            self.dna = self.generate_random_dna()
+        self.id = EColi.ecoli_counter
+        self.fitness = fitness
+        EColi.ecoli_counter += 1
+
     
-    def calc_fitness() -> int: 
-        return 1
+    def calc_fitness(self) -> int: 
+        return self.fitness
     
     def multiply() -> None:
-        NotImplemented
-
-    def generate_random_dna(self) -> str:
-        # TODO this function will be deleted later
-        # Generate a 900-base DNA string using the bases A, T, C, and G
-        return ''.join(random.choice('ACTG') for _ in range(DNA_LENGTH))
+        parent_fitness = self.fitness
+        child_1 = EColi(fitness=parent_fitness)
+        child_2 = EColi(fitness=parent_fitness)
+        return child_1, child_2
     
-    def get_dna(self) -> str:
-        return self.dna
+    def __str__(self) -> str:
+        return f"E. Coli \tid: {self.id}\tfitness: {self.fitness}"
     
-
-    @staticmethod
-    def gene_copy(ecoli:EColi):
-        old_dna = ecoli.get_dna()
-
-    
-    
-    @staticmethod
-    def get_all_ecoli():
-        return EColi.all_ecoli
+    def __repr__(self) -> str:
+        return f"EColi(id={self.id}, fitness={self.fitness})"
