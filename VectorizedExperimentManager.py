@@ -38,6 +38,7 @@ class VectorizedExperimentManager:
         # Followup data:
         self.pop_size_per_generation = [size_of_initial_population]
         self.max_stored_beta_per_generation = [initial_beta_stored]
+        self.avg_stored_beta_per_generation = [initial_beta_stored]
 
         return
 
@@ -57,7 +58,6 @@ class VectorizedExperimentManager:
             self.fitness_vec.size)
         self.beta_stored_vec[multiplied] /= float(2)
 
-        # TODO Possible troubles here!
         self.fitness_vec = np.minimum(self.beta_stored_vec, 1)
 
         self.fitness_vec = np.hstack(
@@ -79,8 +79,10 @@ class VectorizedExperimentManager:
             # })
             # print(ecoli_data)
 
+        # Followup data
         self.pop_size_per_generation.append(self.fitness_vec.size)
         self.max_stored_beta_per_generation.append(np.max(self.beta_stored_vec))
+        self.avg_stored_beta_per_generation.append(np.mean(self.beta_stored_vec))
 
 
 # Plotting
@@ -100,6 +102,12 @@ class VectorizedExperimentManager:
         ylabel = "Population Size"
         self.general_plot(self.pop_size_per_generation, title, ylabel)
 
+    def plot_avg_stored_protein(self):
+        """This is a shortcut function for plotting the max stored protein over generations.
+        """
+        title = "E. coli Max Average Protein Over Generations"
+        ylabel = "Average Protein Stored"
+        self.general_plot(self.avg_stored_beta_per_generation, title, ylabel )
 
     def general_plot(self, data: list, title, y_label):
         plt.plot(data, marker='o')
