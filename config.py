@@ -15,3 +15,5 @@ DEFAULT_MULTIPLICATION_RATE = 0.3
 DEFAULT_SIZE_OF_INITIAL_POPULATION = 100
 DEFAULT_FITNESS = 0.8
 DEFAULT_ANTIBIOTICS = 1e8
+
+MINIMUM_INHIBITORY_CONCENTRATION = 1e4  # This number is arbitrary, any antibiotic below it will lose some fitness harming on the bacteria
