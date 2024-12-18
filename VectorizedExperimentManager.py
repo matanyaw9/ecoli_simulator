@@ -48,12 +48,12 @@ class VectorizedExperimentManager:
         self.BETA_PTODUCTION_RATE = beta_production
         self.INITIAL_AVAILABLE_BETA = initial_available_beta
         self.MULTIPLICATION_RATE = multiplication_rate
+        self.INITIAL_ANTIBIOITCS = self.antibiotics_amount_in_medium
 
         self.generation_when_mic_passed = None
         self.total_beta_in_medium = size_of_initial_population * initial_available_beta
 
         # Population Feature Vectors
-        # self.fitness_vec = np.full(shape=size_of_initial_population,fill_value=min(initial_available_beta, 1),dtype=np.float64)
         self.bacterial_death_likelihood_vec = np.full(shape=size_of_initial_population,fill_value=1-min(initial_available_beta, 1),dtype=np.float64)
         self.bacterial_beta_available_vec = np.full(shape=size_of_initial_population,fill_value=initial_available_beta,dtype=np.float64)
 
@@ -112,20 +112,8 @@ class VectorizedExperimentManager:
 
         self.bacterial_death_likelihood_vec = np.maximum(1 - self.bacterial_beta_available_vec, 0)  # death likelihood is 1 - fitness
         
-    # __________________________________________________________
-    # # TODO: Replace this with the sigmoid severity function:
-    #     # If there is not much antibiotics on the plate, the bacteria will be more resistant
-    #     if self.antibiotics_amount_in_medium < config.MINIMUM_INHIBITORY_CONCENTRATION:
-    #         self.generation_when_mic_passed = self.current_generation_number if self.generation_when_mic_passed is None else self.generation_when_mic_passed
-    #         remaining_of_MIC = self.antibiotics_amount_in_medium / config.MINIMUM_INHIBITORY_CONCENTRATION
-    #         # *************************************************************************************************************
-    #         self.bacterial_death_likelihood_vec *= remaining_of_MIC
-    #         # *************************************************************************************************************
-    # # __________________________________________________________
     
 
-        # self.fitness_vec = np.hstack(
-            # (self.fitness_vec, self.fitness_vec[multiplied]))
         self.bacterial_death_likelihood_vec = np.hstack(
             (self.bacterial_death_likelihood_vec, self.bacterial_death_likelihood_vec[multiplied]))
         self.bacterial_beta_available_vec = np.hstack(
@@ -136,14 +124,19 @@ class VectorizedExperimentManager:
                 f"Generation: {self.current_generation_number}\t population size: {self.bacterial_death_likelihood_vec.size}")
             print(f"Max amount of protein: {np.max(self.bacterial_beta_available_vec):.2f}")
             print(f"Min amount of protein: {np.min(self.bacterial_beta_available_vec):.2f}")
-            # ecoli_data = pd.DataFrame({
-            #     "Fitness": self.fitness_vec,
-            #     "beta_available": self.beta_available_vec
-            # })
-            # print(ecoli_data)
 
    
+    def run_simulation(self, print_info=False):
+        while self.antibiotics_amount_in_medium > 0:
+            if self.get_population_size() == 0:
+                break
+            self.run_generation(print_info=print_info)
 
+    def plot_all(self):
+        self.plot_pop_sizes_history()
+        self.plot_antibiotics_amount_history()
+        self.plot_survival_rate_history()
+        self.plot_total_beta_in_medium_history()
 
 # Plotting History
 
@@ -240,7 +233,7 @@ class VectorizedExperimentManager:
             f"Initial Population: {NUMBER_FORMATTER(self.INITIAL_SIZE_OF_POPULATION)}\n"
             f"Multiplication Rate: {self.MULTIPLICATION_RATE}\n"
             f"Initial BL: {NUMBER_FORMATTER(self.INITIAL_AVAILABLE_BETA)}\n"
-            f"Initial Antibiotics: {NUMBER_FORMATTER(self.antibiotics_in_medium_history[0])}\n"
+            f"Initial Antibiotics: {NUMBER_FORMATTER(self.INITIAL_ANTIBIOITCS)}\n"
             f"Beta Production Rate: {self.BETA_PTODUCTION_RATE}"
         )
         # Position the text box in the plot (adjust x and y as needed)
