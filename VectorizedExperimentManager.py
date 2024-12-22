@@ -22,6 +22,16 @@ def pseudo_sigma(x: float, shift:float=0, steepness:float=1) -> float:
 
 
 class VectorizedExperimentManager:
+
+    production_per_plasmid = np.array([1, 0.1, 0])
+
+    # The values are to be changed:
+    # Mutation Rates            from:  wt     m1     m2     To:
+    mutation_rate_matrix = np.array([[0.99, 0.005, 0.005], # wt
+                                     [0.005, 0.99, 0.005], # m1
+                                     [0.005, 0.005, 0.99]]) # m2
+
+
     def __init__(self, max_generations=config.MAX_NUMBER_OF_GENERATIONS,
                  initial_antibiotic_amount=config.DEFAULT_ANTIBIOTICS) -> None:
         print("Created a New Experiment!")
@@ -34,11 +44,12 @@ class VectorizedExperimentManager:
 
         # self.fitness_vec = None
         self.bacterial_death_likelihood_vec = None    # easier way to approach fitness? it's (1 - fitness)
+        
 
     def get_population_size(self):
         return self.bacterial_death_likelihood_vec.size
 
-    def generate_initial_population(self,
+    def generate_initial_population(self, wt_num, m1_num, m2_num,
                                     size_of_initial_population=config.DEFAULT_SIZE_OF_INITIAL_POPULATION,
                                     beta_production=config.BETA_LACTAMAS_PRODUCTION,
                                     initial_available_beta=config.INITIAL_AVAILABLE_BETA,
@@ -56,6 +67,13 @@ class VectorizedExperimentManager:
         # Population Feature Vectors
         self.bacterial_death_likelihood_vec = np.full(shape=size_of_initial_population,fill_value=1-min(initial_available_beta, 1),dtype=np.float64)
         self.bacterial_beta_available_vec = np.full(shape=size_of_initial_population,fill_value=initial_available_beta,dtype=np.float64)
+        wt_plasmids = np.ones(size_of_initial_population) * wt_num
+        m1_plasmids = np.ones(size_of_initial_population) * m1_num
+        m2_plasmids = np.ones(size_of_initial_population) * m2_num
+        self.plasmids = np.column_stack((wt_plasmids, m1_plasmids, m2_plasmids))
+
+
+
 
         # Followup data:
         self.population_size_history = [size_of_initial_population]
@@ -70,26 +88,30 @@ class VectorizedExperimentManager:
     def run_generation(self, print_info=False):
         self.current_generation_number += 1
 
-        #  ---------- Kill Stochastically ----------
+        #  ---------- Calc Fitness ----------
         antibiotics_severeness = pseudo_sigma(self.antibiotics_amount_in_medium, config.MINIMUM_INHIBITORY_CONCENTRATION)
         self.bacterial_death_likelihood_vec *= antibiotics_severeness
+        
 
+        #  ---------- Kill Stochastically ----------
         survived = self.bacterial_death_likelihood_vec < np.random.rand(self.bacterial_death_likelihood_vec.size)
-        self.survival_rate_history.append(survived.sum()/survived.size)
+        
         self.bacterial_death_likelihood_vec = self.bacterial_death_likelihood_vec[survived]
         self.bacterial_beta_available_vec = self.bacterial_beta_available_vec[survived]
+        self.plasmids = self.plasmids[survived]
 
         # Followup data
+        self.survival_rate_history.append(survived.sum()/survived.size)
         self.population_size_history.append(self.bacterial_death_likelihood_vec.size)
 
-        if (self.bacterial_death_likelihood_vec.size == 0):
-            print(
-                f"! The Bacteria has Died Out After {self.current_generation_number} Generations !")
+        if self.bacterial_death_likelihood_vec.size == 0:
+            print(f"! The Bacteria has Died Out After {self.current_generation_number} Generations !")
             return
 
         # ---------- Produce Beta ----------
-        self.bacterial_beta_available_vec += self.BETA_PTODUCTION_RATE
-        self.total_beta_in_medium += self.BETA_PTODUCTION_RATE * self.bacterial_death_likelihood_vec.size
+        produced_beta_vec = np.dot(self.plasmids, self.production_per_plasmid)
+        self.bacterial_beta_available_vec += produced_beta_vec
+        self.total_beta_in_medium += produced_beta_vec.sum()
 
         # ---------- Antibiotics removal ----------
         self.antibiotics_amount_in_medium -= self.total_beta_in_medium
@@ -110,14 +132,18 @@ class VectorizedExperimentManager:
         multiplied = self.MULTIPLICATION_RATE > np.random.rand(self.bacterial_death_likelihood_vec.size)
         self.bacterial_beta_available_vec[multiplied] /= float(2)
 
+        #  Update Fitness
         self.bacterial_death_likelihood_vec = np.maximum(1 - self.bacterial_beta_available_vec, 0)  # death likelihood is 1 - fitness
         
+        # Mutate Plasmids:
+
     
 
         self.bacterial_death_likelihood_vec = np.hstack(
             (self.bacterial_death_likelihood_vec, self.bacterial_death_likelihood_vec[multiplied]))
         self.bacterial_beta_available_vec = np.hstack(
             (self.bacterial_beta_available_vec, self.bacterial_beta_available_vec[multiplied]))
+        self.plasmids = np.row_stack((self.plasmids, self.plasmids[multiplied]))
 
         if print_info:
             print(
