@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import EngFormatter
 from collections.abc import Iterable
 
-
+TYPES_OF_PLASMIDS = 3
 # def severity_of_antibiotics(amount_of_antibiotics: float) -> float:
 #     # This is effectively a sigmoid function
 #     return 1 - 1 / (1 + np.exp(amount_of_antibiotics - config.MINIMUM_INHIBITORY_CONCENTRATION))
@@ -26,17 +26,24 @@ class VectorizedExperimentManager:
     production_per_plasmid = np.array([1, 0.1, 0])
 
     # The values are to be changed:
-    # Mutation Rates            from:  wt     m1     m2     To:
-    mutation_rate_matrix = np.array([[0.99, 0.005, 0.005], # wt
-                                     [0.005, 0.99, 0.005], # m1
-                                     [0.005, 0.005, 0.99]]) # m2
+    # # Mutation Rates            to:  wt     m1     m2     from:
+    # mutation_rate_matrix = np.array([[0.99, 0.005, 0.005], # wt
+    #                                  [0.005, 0.99, 0.005], # m1
+    #                                  [0.005, 0.005, 0.99]]) # m2
+    
+    # Mutation Rates            to:  wt     m1     m2     from:
+    mutation_rate_matrix = np.array([[1, 0, 0], # wt
+                                     [0.5, 0.5, 0], # m1
+                                     [0, 0.5, 0.5]]) # m2
 
 
     def __init__(self, max_generations=config.MAX_NUMBER_OF_GENERATIONS,
-                 initial_antibiotic_amount=config.DEFAULT_ANTIBIOTICS) -> None:
+                 initial_antibiotic_amount=config.DEFAULT_ANTIBIOTICS,
+                 MIC=config.MINIMUM_INHIBITORY_CONCENTRATION) -> None:
         print("Created a New Experiment!")
 
         self.antibiotics_amount_in_medium = initial_antibiotic_amount
+        self.MIC = MIC
         self.total_beta_in_medium = 0
         self.current_generation_number = 0
         # TODO is it redundant?
@@ -51,12 +58,11 @@ class VectorizedExperimentManager:
 
     def generate_initial_population(self, wt_num, m1_num, m2_num,
                                     size_of_initial_population=config.DEFAULT_SIZE_OF_INITIAL_POPULATION,
-                                    beta_production=config.BETA_LACTAMAS_PRODUCTION,
                                     initial_available_beta=config.INITIAL_AVAILABLE_BETA,
                                     multiplication_rate=config.DEFAULT_MULTIPLICATION_RATE):
 
         self.INITIAL_SIZE_OF_POPULATION = size_of_initial_population
-        self.BETA_PTODUCTION_RATE = beta_production
+        # self.BETA_PTODUCTION_RATE = beta_production
         self.INITIAL_AVAILABLE_BETA = initial_available_beta
         self.MULTIPLICATION_RATE = multiplication_rate
         self.INITIAL_ANTIBIOITCS = self.antibiotics_amount_in_medium
@@ -82,14 +88,20 @@ class VectorizedExperimentManager:
         self.antibiotics_in_medium_history = [self.antibiotics_amount_in_medium]
         self.total_beta_in_medium_history = [self.total_beta_in_medium]
         self.survival_rate_history = []
-
+        self.print_info()
         return
 
+    def mutation_matrix(self, single_cell_plasmids,):
+        mut_matrix = np.vstack([np.random.multinomial(single_cell_plasmids[i], self.mutation_rate_matrix[i], 1) for i in range(TYPES_OF_PLASMIDS)])
+        # print(pass_matrix.shape)
+        return mut_matrix
+
+    
     def run_generation(self, print_info=False):
         self.current_generation_number += 1
 
         #  ---------- Calc Fitness ----------
-        antibiotics_severeness = pseudo_sigma(self.antibiotics_amount_in_medium, config.MINIMUM_INHIBITORY_CONCENTRATION)
+        antibiotics_severeness = pseudo_sigma(self.antibiotics_amount_in_medium, self.MIC)
         self.bacterial_death_likelihood_vec *= antibiotics_severeness
         
 
@@ -130,27 +142,42 @@ class VectorizedExperimentManager:
 
         # ---------- Split Stochastically ----------
         multiplied = self.MULTIPLICATION_RATE > np.random.rand(self.bacterial_death_likelihood_vec.size)
-        self.bacterial_beta_available_vec[multiplied] /= float(2)
+        if multiplied.any():
+            self.bacterial_beta_available_vec[multiplied] /= float(2)
 
-        #  Update Fitness
-        self.bacterial_death_likelihood_vec = np.maximum(1 - self.bacterial_beta_available_vec, 0)  # death likelihood is 1 - fitness
+            #  Update Fitness
+            self.bacterial_death_likelihood_vec = np.maximum(1 - self.bacterial_beta_available_vec, 0)  # death likelihood is 1 - fitness
+            
+
         
-        # Mutate Plasmids:
 
-    
+            self.bacterial_death_likelihood_vec = np.hstack((self.bacterial_death_likelihood_vec, self.bacterial_death_likelihood_vec[multiplied]))
+            self.bacterial_beta_available_vec = np.hstack((self.bacterial_beta_available_vec, self.bacterial_beta_available_vec[multiplied]))
+            self.plasmids = np.row_stack((self.plasmids, self.plasmids[multiplied]))
 
-        self.bacterial_death_likelihood_vec = np.hstack(
-            (self.bacterial_death_likelihood_vec, self.bacterial_death_likelihood_vec[multiplied]))
-        self.bacterial_beta_available_vec = np.hstack(
-            (self.bacterial_beta_available_vec, self.bacterial_beta_available_vec[multiplied]))
-        self.plasmids = np.row_stack((self.plasmids, self.plasmids[multiplied]))
+            new_cells = np.hstack((multiplied, multiplied[multiplied])) # a way to follow what cells are new and what are old
+
+            # Mutate Plasmids:
+            new_plasmids = self.mutate_plasmids(new_cells)
+            self.plasmids[new_cells] = new_plasmids 
 
         if print_info:
-            print(
-                f"Generation: {self.current_generation_number}\t population size: {self.bacterial_death_likelihood_vec.size}")
-            print(f"Max amount of protein: {np.max(self.bacterial_beta_available_vec):.2f}")
-            print(f"Min amount of protein: {np.min(self.bacterial_beta_available_vec):.2f}")
+            self.print_info()
+    
+    def print_info(self):
+        print(f"Generation: {self.current_generation_number}\t pop size: {self.bacterial_death_likelihood_vec.size}")
+        print(self.plasmids)
+        # print(f"Max amount of protein: {np.max(self.bacterial_beta_available_vec):.2f}")
+        # print(f"Min amount of protein: {np.min(self.bacterial_beta_available_vec):.2f}")
 
+    def mutate_plasmids(self, new_cells):
+         # Mutate Plasmids:
+        mut_matrixes = []
+        for cell in self.plasmids[new_cells]:
+            mut_matrixes.append(self.mutation_matrix(cell))
+        mut_matrixes = np.stack(mut_matrixes)
+        new_plasmids = np.sum(mut_matrixes, axis=1)
+        return new_plasmids
    
     def run_simulation(self, print_info=False):
         while self.antibiotics_amount_in_medium > 0:
@@ -260,7 +287,7 @@ class VectorizedExperimentManager:
             f"Multiplication Rate: {self.MULTIPLICATION_RATE}\n"
             f"Initial BL: {NUMBER_FORMATTER(self.INITIAL_AVAILABLE_BETA)}\n"
             f"Initial Antibiotics: {NUMBER_FORMATTER(self.INITIAL_ANTIBIOITCS)}\n"
-            f"Beta Production Rate: {self.BETA_PTODUCTION_RATE}"
+            # f"Beta Production Rate: {self.BETA_PTODUCTION_RATE}"
         )
         # Position the text box in the plot (adjust x and y as needed)
         plt.gca().text(0.05, 0.95, model_details, transform=plt.gca().transAxes,
